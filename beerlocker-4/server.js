@@ -73,4 +73,6 @@ router.route('/oauth2/token')
 app.use('/api', router);
 
 // Start the server
-app.listen(3000);
+var server = app.listen(process.env.PORT,function() {
+    console.log(server.address().port);
+});
