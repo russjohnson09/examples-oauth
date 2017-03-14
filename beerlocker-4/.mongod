@@ -1,1 +1,2 @@
+mongod --repair --dbpath /tmp/data
 mongod --bind_ip=$IP --dbpath=/tmp/data --nojournal --rest "$@"
