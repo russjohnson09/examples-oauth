@@ -10,7 +10,22 @@ const uuidV1 = require('uuid/v1');
 const db = lowdb(path.join('.', 'db.json'));
 const winston = require('winston');
 
+const urlencode = require('urlencode');
+
 const bodyParser = require('body-parser');
+
+const PORT = process.env.PORT || 3000;
+
+
+const url = require('url');
+
+function fullUrl(req) {
+    return url.format({
+        protocol: req.protocol,
+        host: req.get('host'),
+        pathname: req.originalUrl
+    });
+}
 
 
 
@@ -45,7 +60,6 @@ app.use(session({
 app.use(bodyParser.json());
 
 
-app.use(express.static(path.join('.', 'public')));
 
 
 // Use the passport package in our application
@@ -191,7 +205,10 @@ authenticatedRouter.use(function(req, res, next) {
 });
 
 authenticatedRouter.get('/users/me', function(req, res, next) {
-    res.json({id:req.user.id,username:req.user.username});
+    res.json({
+        id: req.user.id,
+        username: req.user.username
+    });
 })
 
 
@@ -205,7 +222,150 @@ app.use('/v1', authenticatedRouter);
 
 
 
+var oauthRouter = express.Router();
+
+//client_id
+//redirect_uri
+//scope
+//state
+oauthRouter.get('/oauth/authorize', function(req, res, next) {
+    winston.info('oauth');
+    if (!req.query) {
+        res.status(400);
+        return res.json({
+            "message": 'Bad Request',
+            status: "bad request"
+        });
+    }
+    //|| !req.query.redirect_uri
+    if (!req.query.client_id) { // || !req.query.state) {
+        res.status(400);
+        return res.json({
+            "message": 'Bad Request',
+            status: "bad request"
+        });
+    }
+    var client_id = req.query.client_id;
+
+    var client = db.get('clients')
+        .find({
+            id: client_id
+        })
+        .value();
+
+    if (!client) {
+        res.status(401);
+        return res.json({
+            "message": 'Unauthorized',
+            status: "unauthorized"
+        });
+    }
+
+    if (!req.isAuthenticated()) {
+        var url = req.protocol + '://' + req.get('host') + req.originalUrl;
+        winston.info(url);
+        url = urlencode(url);
+        winston.info(url);
+
+        return res.redirect('/login?redirect_uri=' + url);
+    }
+
+
+    winston.info(req.query.client_id);
+    res.sendFile('index.html', {
+        root: path.join(__dirname, 'public', 'login', 'oauth',
+            'authorize')
+    });
+});
+
+oauthRouter.post('/oauth/authorize', function(req, res, next) {
+    winston.info('oauth');
+    if (!req.body) {
+        res.status(400);
+        return res.json({
+            "message": 'Bad Request',
+            status: "bad request"
+        });
+    }
+    //|| !req.query.redirect_uri
+    if (!req.body.client_id) { // || !req.query.state) {
+        res.status(400);
+        return res.json({
+            "message": 'Bad Request',
+            status: "bad request"
+        });
+    }
+    var client_id = req.body.client_id;
+
+    console.log(client_id);
+    var client = db.get('clients')
+        .find({
+            id: client_id
+        })
+        .value();
+        
+    winston.info(client);
+
+    if (!client) {
+        res.status(401);
+        return res.json({
+            "message": 'Unauthorized',
+            status: "unauthorized"
+        });
+    }
+
+    if (!req.isAuthenticated()) {
+        res.status(401);
+        return res.json({
+            "message": 'Unauthorized',
+            status: "unauthorized"
+        });
+    }
+
+    
+    var code = generateCode();
+    db.get('users')
+      .find({ id: req.user.id })
+      .assign({ code: code})
+      .write();
+      
+    var user = db.get('users')
+      .find({ id: req.user.id })
+      .value();
+    
+    res.status(201);
+
+    return res.json({
+        code: user.code,
+        meta: {
+            "message": 'Success',
+            status: "success"
+        }
+    });
+
+
+    winston.info(req.query.client_id);
+    res.sendFile('index.html', {
+        root: path.join(__dirname, 'public', 'login', 'oauth',
+            'authorize')
+    });
+});
+
+
+function generateCode()
+{
+    return '1';
+}
+
+
+
+app.use('', oauthRouter);
+
+app.use(express.static(path.join('.', 'public')));
+
+
+
 // Start the server
-var server = app.listen(process.env.PORT, function() {
+var server = app.listen(PORT, function() {
     console.log(server.address().port);
 });

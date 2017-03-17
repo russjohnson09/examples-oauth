@@ -1,9 +1,20 @@
-var scotchTodo = angular.module('scotchTodo', []);
+var app = angular.module('login', []);
 
-function mainController($scope, $http) {
+app.config(['$locationProvider', function($locationProvider) {
+	$locationProvider.html5Mode({
+		enabled: true
+			// ,requireBase: false
+	});
+}]);
+
+app.controller('mainController',function($rootScope, $scope, $location, $http) {
 	$scope.formData = {};
 	
 	$scope.todos = [];
+	
+	var params = $location.search();
+	
+	console.log(params);
 
 	$scope.login = function() {
 		console.log($scope.formData);
@@ -13,8 +24,11 @@ function mainController($scope, $http) {
 			console.log(res.status);
 			console.log(res.data);
 			if (res.status === 201) {
-				console.log('redirect to /profile')
-				window.location = '/profile';
+				if (!params.redirect_uri) {
+					params.redirect_uri = '/profile';
+				}
+				console.log('redirect to '+params.redirect_uri)
+				window.location = params.redirect_uri;
 			}
 		},
 		function errorCallback(res) {
@@ -46,3 +60,4 @@ function mainController($scope, $http) {
 	// }
 
 }
+);

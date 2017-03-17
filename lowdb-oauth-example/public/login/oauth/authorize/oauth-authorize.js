@@ -1,52 +1,49 @@
 //https://gist.github.com/siberex/405ae3acf97b11b1cb44
 
-var app = angular.module('oauth-authorize')
-// .config(['$locationProvider', function($locationProvider) {
-// 	$locationProvider.html5Mode({
-// 		enabled: true
-// 			// ,requireBase: false
-// 	});
-// }]);
 
-// var AwesomeAppName = angular.module('awesomeApp', []);
-// AwesomeAppName.config(['$locationProvider', function($locationProvider) {
-// 	$locationProvider.html5Mode({
-// 		enabled: true
-// 			// ,requireBase: false
-// 	});
-// }]);
+var app = angular.module('oauth-authorize', []);
 
 
-// AwesomeAppName.controller(
-// 	'CtrlDoAwesomeness', ['$rootScope', '$scope', '$location', '$http', function($rootScope, $scope, $location, $http) {
-// 		// Adding watcher
-// 		$rootScope.$on("$locationChangeSuccess", function(event, next, current) {
-// 			// Do stuff when location changed
-// 			var url = decodeURIComponent($location.url());
-// 			console.log("url: " + url);
-// 			console.log("current location: " + current);
-// 			console.log("location changed to: " + next);
-// 		});
-// 		$scope.ohMyButton = function(event) {
-// 			console.log('Button clicked');
-// 			$location.path('/some/another/location');
-// 		};
-// 	}]
-// );
+app.config(['$locationProvider', function($locationProvider) {
+    $locationProvider.html5Mode({
+        enabled: true
+            // ,requireBase: false
+    });
+}]);
 
-// function mainController($scope, $http) {
-// 	$scope.user = {};
+app.controller('mainController', function($rootScope, $scope, $location, $http) {
 
-// 	console.log($location);
+    queryparams = $location.search();
+    
+    $http.post('/oauth/authorize', queryparams).then(function successCallback(res) {
+            console.log('success');
+            console.log(res);
+            console.log(res.status);
+            console.log(res.data);
+            // if (res.status === 201) {
+            //     if (!params.redirect_uri) {
+            //         params.redirect_uri = '/profile';
+            //     }
+            //     console.log('redirect to ' + params.redirect_uri)
+            //     window.location = params.redirect_uri;
+            // }
+        },
+        function errorCallback(res) {
+            console.log(res.status);
+                        console.log(res.data);
 
+            window.location = '/login';
+        });
+        
+        
+    // console.log($scope);
+    // console.log($location);
+    // var queryparams = $location.search();
+    // console.log(queryparams);
+    // if (queryparams.client_id) {
 
-// 	$http.get('/v1/users/me').success(function(data) {
-// 			$scope.user = data;
-// 			console.log(data);
-// 		})
-// 		.error(function(data) {
-// 			console.log('Error: ' + data);
-// 			window.location = '/login';
-// 		});
-
-// }
+    // }
+    //redirect_uri
+    //scope
+    //state
+});
