@@ -228,7 +228,7 @@ var oauthRouter = express.Router();
 //redirect_uri
 //scope
 //state
-oauthRouter.get('/oauth/authorize', function(req, res, next) {
+oauthRouter.get('/login/oauth/authorize', function(req, res, next) {
     winston.info('oauth');
     if (!req.query) {
         res.status(400);
@@ -278,7 +278,7 @@ oauthRouter.get('/oauth/authorize', function(req, res, next) {
     });
 });
 
-oauthRouter.post('/oauth/authorize', function(req, res, next) {
+oauthRouter.post('/login/oauth/authorize', function(req, res, next) {
     winston.info('oauth');
     if (!req.body) {
         res.status(400);

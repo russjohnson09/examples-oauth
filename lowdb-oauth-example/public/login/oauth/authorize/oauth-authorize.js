@@ -15,7 +15,7 @@ app.controller('mainController', function($rootScope, $scope, $location, $http) 
 
     queryparams = $location.search();
     
-    $http.post('/oauth/authorize', queryparams).then(function successCallback(res) {
+    $http.post('/login/oauth/authorize', queryparams).then(function successCallback(res) {
             console.log('success');
             console.log(res);
             console.log(res.status);
