@@ -14,7 +14,11 @@ const urlencode = require('urlencode');
 
 const bodyParser = require('body-parser');
 
+const crypto = require('crypto');
+
 const PORT = process.env.PORT || 3000;
+
+const request = require('request');
 
 
 const url = require('url');
@@ -43,6 +47,9 @@ db.set('users', [{
         password: 'admin'
     }])
     .write();
+
+const CLIENT_ID = 'client_id';
+const CLIENT_SECRET = 'client_secret';
 
 db.set('clients', [{
         id: 'client_id',
@@ -303,7 +310,7 @@ oauthRouter.post('/login/oauth/authorize', function(req, res, next) {
             id: client_id
         })
         .value();
-        
+
     winston.info(client);
 
     if (!client) {
@@ -322,18 +329,60 @@ oauthRouter.post('/login/oauth/authorize', function(req, res, next) {
         });
     }
 
-    
+
     var code = generateCode();
     db.get('users')
-      .find({ id: req.user.id })
-      .assign({ code: code})
-      .write();
-      
+        .find({
+            id: req.user.id
+        })
+        .assign({
+            code: code
+        })
+        .write();
+
     var user = db.get('users')
-      .find({ id: req.user.id })
-      .value();
-    
+        .find({
+            id: req.user.id
+        })
+        .value();
+
     res.status(201);
+
+    return res.json({
+        code: user.code,
+        meta: {
+            "message": 'Success',
+            status: "success"
+        }
+    });
+});
+
+
+
+oauthRouter.post('/login/oauth/access_token', function(req, res, next) {
+    winston.info('oauth');
+    
+    var client_id = req.body.client_id
+    var client_secret = req.body.client_secret;
+    var code = req.body.code;
+    
+    var client = db.get('clients')
+        .find({
+            client_id: client_id
+        })
+        .value();
+        
+    if (client.client_secret != client_secret) {
+        winston.info('unauthorized');
+        res.end();
+        return;
+    }
+    
+    var user = db.get('users')
+        .find({
+            code: code
+        })
+        .value();
 
     return res.json({
         code: user.code,
@@ -344,16 +393,10 @@ oauthRouter.post('/login/oauth/authorize', function(req, res, next) {
     });
 
 
-    winston.info(req.query.client_id);
-    res.sendFile('index.html', {
-        root: path.join(__dirname, 'public', 'login', 'oauth',
-            'authorize')
-    });
 });
 
 
-function generateCode()
-{
+function generateCode() {
     return '1';
 }
 
@@ -367,5 +410,151 @@ app.use(express.static(path.join('.', 'public')));
 
 // Start the server
 var server = app.listen(PORT, function() {
+    var port = server.address().port;
+
+    BASE_URL = "http://localhost:" + port
     console.log(server.address().port);
 });
+
+
+
+
+// router.get('/link', function(req, ExpressRes) {
+//     var sess = req.session;
+//     var user = req.user;
+//     if (!user.access_token_github) {
+//         return res.redirect('/link');
+//     }
+//     request.get({
+//         headers: {
+//             'content-type': 'application/json',
+//             'Accept': 'application/json',
+//             'User-Agent': CODERUSS_USER_AGENT,
+//             'Authorization': 'token ' + user.access_token_github,
+//         },
+//         url: GITHUB_API_URL + '/user',
+//     }, function(err, res, body) {
+//         winston.debug(res.statusCode);
+//         winston.debug(body);
+
+//         ExpressRes.status(res.statusCode);
+//         return ExpressRes.send(body);
+//     });
+// });
+
+app.get('/link', function(req, res) {
+    var sess = req.session;
+
+    if (req.query.code && req.query.state &&
+        sess.github_oauth_state === req.query.state) {
+        winston.info('has code');
+        var code = req.query.code;
+
+        addUpdateOauth(req.user, code, req.query.state, function(err, user) {
+            if (err) {
+                winston.error(err);
+
+            }
+            res.redirect('/profile');
+            return res.end();
+
+        })
+
+    }
+    else if (req.query.code) {
+        res.redirect(400, '/');
+        return res.json({
+            message: "bad request"
+        });
+    }
+    else {
+        sess.github_oauth_state = getToken();
+        var redirect = getAuthRedirect();
+        redirect += '&state=' + sess.github_oauth_state + '&client_id='+CLIENT_ID;
+        return res.redirect(redirect);
+    }
+});
+
+
+function getToken() {
+    return crypto.randomBytes(64).toString('hex');
+}
+
+function getAuthRedirect() {
+    var token = getToken();
+    var url = BASE_URL = '/login/oauth/authorize?redirect_uri=http://localhost:3000/link';
+    return url;
+}
+
+
+
+function addUpdateOauth(user, code, state, callback) {
+    request.post({
+        headers: {
+            'content-type': 'application/json',
+            'Accept': 'application/json'
+        },
+        url: BASE_URL + '/login/oauth/access_token',
+        body: JSON.stringify({
+            client_id: CLIENT_ID,
+            client_secret: CLIENT_SECRET,
+            code: code,
+            state: state
+        })
+    }, function(error, res, body) {
+        winston.debug(res.headers);
+        winston.debug(res.statusCode);
+        if (res.statusCode !== 200) {
+            winston.error('unexected statusCode ' + res.statusCode);
+        }
+        else {
+            winston.debug(body);
+            var data = JSON.parse(body);
+            var access_token = data.access_token;
+            if (!access_token) {
+                winston.error('failed to get access_token');
+            }
+            else {
+                result = // Update a post.
+                    db.get('users')
+                    .find({
+                        id: user.id
+                    })
+                    .assign({
+                        access_token: access_token
+                    })
+                    .write();
+
+                var user = db.get('users')
+                    .find({
+                        id: user.id
+                    })
+                    .value();
+
+                winston.info(user);
+
+                var headers = {
+                    'content-type': 'application/json',
+                    'Accept': 'application/json',
+                    'Authorization': 'token ' + user.access_token,
+                };
+
+
+                winston.log(headers);
+
+                request.get({
+                    headers: headers,
+                    url: BASE_URL + '/profile',
+                }, function(err, res, body) {
+                    winston.info(res.statusCode);
+                    winston.info(body);
+
+                    callback();
+
+                })
+
+            }
+        }
+    })
+
+}

@@ -14,28 +14,32 @@ app.config(['$locationProvider', function($locationProvider) {
 app.controller('mainController', function($rootScope, $scope, $location, $http) {
 
     queryparams = $location.search();
-    
+
+    // $scope.redirect_link = queryparams.redirect + ''
+
     $http.post('/login/oauth/authorize', queryparams).then(function successCallback(res) {
             console.log('success');
             console.log(res);
             console.log(res.status);
             console.log(res.data);
-            // if (res.status === 201) {
-            //     if (!params.redirect_uri) {
-            //         params.redirect_uri = '/profile';
-            //     }
-            //     console.log('redirect to ' + params.redirect_uri)
-            //     window.location = params.redirect_uri;
-            // }
+            $scope.redirect_link = queryparams.redirect_uri + '?code=' + res.data.code 
+            + '&state=' + queryparams.state;
+                // if (res.status === 201) {
+                //     if (!params.redirect_uri) {
+                //         params.redirect_uri = '/profile';
+                //     }
+                //     console.log('redirect to ' + params.redirect_uri)
+                //     window.location = params.redirect_uri;
+                // }
         },
         function errorCallback(res) {
             console.log(res.status);
-                        console.log(res.data);
+            console.log(res.data);
 
             window.location = '/login';
         });
-        
-        
+
+
     // console.log($scope);
     // console.log($location);
     // var queryparams = $location.search();
