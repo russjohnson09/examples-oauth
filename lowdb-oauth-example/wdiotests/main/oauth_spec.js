@@ -10,8 +10,10 @@ describe('login page', function() {
     it('should be able to login', function () {
         browser.logger.info(baseurl+'/login/oauth/authorize/?client_id=client_id');
         // return;
-        browser.url(baseurl+'/login/oauth/authorize/?client_id=client_id');
+        // browser.url(baseurl+'/login/oauth/authorize/?state=123&client_id=client_id&redirect_uri=http://localhost:3000/link');
         // filtering property commands
+        
+        browser.url(baseurl+'/link');
         
         //redirected to login page
         browser.waitForVisible('input[name=\'username\']');
@@ -30,9 +32,18 @@ describe('login page', function() {
         browser.click('button[type=\'submit\']');
         
 
-
         // return;
-        // expect(browser.isVisible('form#create-todo'),'todo form is visible').to.be.true;
+        expect(browser.isVisible('h1.oauth-authorize'),'authorize page is visible').to.be.true;
 
+        expect(browser.isVisible('a.redirect-link')).to.be.true;
     });
+    
+    
+    it('autorize app', function () {
+        
+        // browser.click('a.redirect-link');
+        
+                // expect(browser.is('a.redirect-link')).to.be.true;
+    });
+
 });

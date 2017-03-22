@@ -33,11 +33,11 @@ function fullUrl(req) {
 
 
 
-
 // Set some defaults if your JSON file is empty
 db.defaults({
         clients: [],
-        users: []
+        users: [],
+        oauth_tokens: []
     })
     .write();
 
@@ -48,6 +48,18 @@ db.set('users', [{
     }])
     .write();
 
+db.set('oauth_tokens', [])
+    .write();
+    
+// Add a post
+db.get('oauth_tokens')
+  .push({
+        id: 'admin_token', //uuidV1(), //'admin_token',
+        user_id: 'user_id',
+        client_id: 'client_id'
+    })
+  .write();
+
 const CLIENT_ID = 'client_id';
 const CLIENT_SECRET = 'client_secret';
 
@@ -56,6 +68,15 @@ db.set('clients', [{
         secret: 'client_secret'
     }])
     .write();
+    
+    
+var client = db.get('clients')
+    .find({
+        id: 'client_id'
+    })
+    .value();
+
+winston.info(client);
 
 var app = express();
 
@@ -82,28 +103,28 @@ var router = express.Router();
 
 
 // Create endpoint handlers for oauth2 authorize
-router.route('/oauth2/authorize')
-    .get(
-        //authorize request
-        function(req, res, next) {
-            if (!req.isAuthenticated()) {
-                return res.redirect('/login');
+// router.route('/oauth2/authorize')
+//     .get(
+//         //authorize request
+//         function(req, res, next) {
+//             if (!req.isAuthenticated()) {
+//                 return res.redirect('/login');
 
-            }
-            next();
-        },
-        //process request
-        function() {
-            res.end('success');
-        })
-    .post(
-        //authorize request
-        function() {
+//             }
+//             next();
+//         },
+//         //process request
+//         function() {
+//             res.end('success');
+//         })
+//     .post(
+//         //authorize request
+//         function() {
 
-        },
-        //process request
-        function() {}
-    );
+//         },
+//         //process request
+//         function() {}
+//     );
 
 
 passport.serializeUser(function(user, done) {
@@ -144,7 +165,7 @@ passport.use(new LocalStrategy(
             return done(null, false);
         }
         else {
-            return done(null, user)
+            return done(null, user);
         }
     }
 ));
@@ -198,6 +219,22 @@ router.post('/login', function(req, res, next) {
 var authenticatedRouter = express.Router();
 
 authenticatedRouter.use(function(req, res, next) {
+    if (req.headers.authorization && req.headers.authorization.substr(0,5) == 'token') {
+        var token = req.headers.authorization.substr(6);
+        winston.info(token);
+        var oauth_token = db.get('oauth_tokens').find({id:token}).value();
+        winston.info(token);
+        if (!oauth_token) {
+            res.status(401);
+            return res.json({
+                "message": 'Not a valid token',
+                status: "unauthorized"
+            });
+        }
+        else {
+            req.user = db.get('users').find({id:oauth_token.user_id}).value();
+        }
+    }
     winston.info('authentication status');
     winston.info(req.isAuthenticated());
     winston.info(req.user);
@@ -208,7 +245,7 @@ authenticatedRouter.use(function(req, res, next) {
             status: "unauthorized"
         });
     }
-    next();
+    return next();
 });
 
 authenticatedRouter.get('/users/me', function(req, res, next) {
@@ -362,17 +399,23 @@ oauthRouter.post('/login/oauth/authorize', function(req, res, next) {
 oauthRouter.post('/login/oauth/access_token', function(req, res, next) {
     winston.info('oauth');
     
+    winston.info(req.body);
+    
     var client_id = req.body.client_id
     var client_secret = req.body.client_secret;
     var code = req.body.code;
     
+    winston.info(client_id);
+    
     var client = db.get('clients')
         .find({
-            client_id: client_id
+            id: client_id
         })
         .value();
         
-    if (client.client_secret != client_secret) {
+    winston.info(client);
+        
+    if (client.secret != client_secret) {
         winston.info('unauthorized');
         res.end();
         return;
@@ -446,7 +489,7 @@ app.get('/link', function(req, res) {
     var sess = req.session;
 
     if (req.query.code && req.query.state &&
-        sess.github_oauth_state === req.query.state) {
+        sess.oauth_state === req.query.state) {
         winston.info('has code');
         var code = req.query.code;
 
@@ -462,15 +505,15 @@ app.get('/link', function(req, res) {
 
     }
     else if (req.query.code) {
-        res.redirect(400, '/');
+        res.status(400);
         return res.json({
             message: "bad request"
         });
     }
     else {
-        sess.github_oauth_state = getToken();
+        sess.oauth_state = getToken();
         var redirect = getAuthRedirect();
-        redirect += '&state=' + sess.github_oauth_state + '&client_id='+CLIENT_ID;
+        redirect += '&state=' + sess.oauth_state + '&client_id='+CLIENT_ID;
         return res.redirect(redirect);
     }
 });
@@ -481,8 +524,8 @@ function getToken() {
 }
 
 function getAuthRedirect() {
-    var token = getToken();
-    var url = BASE_URL = '/login/oauth/authorize?redirect_uri=http://localhost:3000/link';
+    // var token = getToken();
+    var url = '/login/oauth/authorize?redirect_uri=http://localhost:3000/link';
     return url;
 }
 
@@ -502,6 +545,9 @@ function addUpdateOauth(user, code, state, callback) {
             state: state
         })
     }, function(error, res, body) {
+        if (error) {
+            winston.error(error);
+        }
         winston.debug(res.headers);
         winston.debug(res.statusCode);
         if (res.statusCode !== 200) {
