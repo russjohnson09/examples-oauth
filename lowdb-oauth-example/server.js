@@ -54,10 +54,15 @@ db.set('oauth_tokens', [])
 // Add a post
 db.get('oauth_tokens')
   .push({
-        id: 'admin_token', //uuidV1(), //'admin_token',
+        id: uuidV1(), //'admin_token',
+        access_token: 'admin_token',
         user_id: 'user_id',
-        client_id: 'client_id'
-    })
+        client_id: 'client_id',
+        code: '1',
+        scope: 'default',
+        token_type: 'bearer'
+        }
+    )
   .write();
 
 const CLIENT_ID = 'client_id';
@@ -222,7 +227,7 @@ authenticatedRouter.use(function(req, res, next) {
     if (req.headers.authorization && req.headers.authorization.substr(0,5) == 'token') {
         var token = req.headers.authorization.substr(6);
         winston.info(token);
-        var oauth_token = db.get('oauth_tokens').find({id:token}).value();
+        var oauth_token = db.get('oauth_tokens').find({access_token:token}).value();
         winston.info(token);
         if (!oauth_token) {
             res.status(401);
@@ -421,11 +426,42 @@ oauthRouter.post('/login/oauth/access_token', function(req, res, next) {
         return;
     }
     
-    var user = db.get('users')
-        .find({
-            code: code
-        })
-        .value();
+    var oauth_token = db.get('oauth_tokens').find({
+        code: code,
+        client_id: client_id
+    }).value();
+    
+    if (!oauth_token) {
+        res.status(404);
+        return res.json({
+            'status': 'notfound'
+        });
+    }
+    
+    var access_token = getToken();
+    
+    db.get('oauth_tokens')
+    .find({
+        code: code,
+        client_id: client_id
+    })
+    .assign({ access_token: access_token})
+    .write();
+    
+    
+    // var oauth_token = db.get('oauth_tokens').find({
+    //     code: code,
+    //     client_id: client_id
+    // }).value();
+    
+
+    res.status(201);
+    
+    return res.json({
+        'access_token': access_token,
+        'scope': oauth_token.scope,
+        'token_type': oauth_token.token_type
+    })
 
     return res.json({
         code: user.code,
@@ -489,7 +525,7 @@ app.get('/link', function(req, res) {
     var sess = req.session;
 
     if (req.query.code && req.query.state &&
-        sess.oauth_state === req.query.state) {
+        sess.oauth_state === req.query.state && req.user) {
         winston.info('has code');
         var code = req.query.code;
 
@@ -532,6 +568,7 @@ function getAuthRedirect() {
 
 
 function addUpdateOauth(user, code, state, callback) {
+    var user_id = user.id;
     request.post({
         headers: {
             'content-type': 'application/json',
@@ -550,7 +587,7 @@ function addUpdateOauth(user, code, state, callback) {
         }
         winston.debug(res.headers);
         winston.debug(res.statusCode);
-        if (res.statusCode !== 200) {
+        if (res.statusCode !== 201) {
             winston.error('unexected statusCode ' + res.statusCode);
         }
         else {
@@ -564,7 +601,7 @@ function addUpdateOauth(user, code, state, callback) {
                 result = // Update a post.
                     db.get('users')
                     .find({
-                        id: user.id
+                        id: user_id
                     })
                     .assign({
                         access_token: access_token
@@ -573,7 +610,7 @@ function addUpdateOauth(user, code, state, callback) {
 
                 var user = db.get('users')
                     .find({
-                        id: user.id
+                        id: user_id
                     })
                     .value();
 
@@ -590,7 +627,7 @@ function addUpdateOauth(user, code, state, callback) {
 
                 request.get({
                     headers: headers,
-                    url: BASE_URL + '/profile',
+                    url: BASE_URL + '/v1/users/me',
                 }, function(err, res, body) {
                     winston.info(res.statusCode);
                     winston.info(body);
